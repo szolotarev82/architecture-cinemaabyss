@@ -6,38 +6,38 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/segmentio/kafka-go"
 )
 
 type MovieEvent struct {
-	ID        uuid.UUID `json:"id"`
-	MovieID   uuid.UUID `json:"movie_id"`
-	Title     string    `json:"title"`
-	Action    string    `json:"action"`
-	UserID    uuid.UUID `json:"user_id"`
-	Timestamp string    `json:"timestamp"`
+	ID        int64  `json:"id"`
+	MovieID   int64  `json:"movie_id"`
+	Title     string `json:"title"`
+	Action    string `json:"action"`
+	UserID    int64  `json:"user_id"`
+	Timestamp string `json:"timestamp"`
 }
 
 type UserEvent struct {
-	ID        uuid.UUID `json:"id"`
-	UserID    uuid.UUID `json:"user_id"`
-	Username  string    `json:"username"`
-	Action    string    `json:"action"`
-	Timestamp string    `json:"timestamp"`
+	ID        int64  `json:"id"`
+	UserID    int64  `json:"user_id"`
+	Username  string `json:"username"`
+	Action    string `json:"action"`
+	Timestamp string `json:"timestamp"`
 }
 
 type PaymentEvent struct {
-	ID         uuid.UUID `json:"id"`
-	PaymentID  uuid.UUID `json:"payment_id"`
-	UserID     uuid.UUID `json:"user_id"`
-	Amount     float64   `json:"amount"`
-	Status     string    `json:"status"`
-	Timestamp  string    `json:"timestamp"`
-	MethodType string    `json:"method_type"`
+	ID         int64   `json:"id"`
+	PaymentID  int64   `json:"payment_id"`
+	UserID     int64   `json:"user_id"`
+	Amount     float64 `json:"amount"`
+	Status     string  `json:"status"`
+	Timestamp  string  `json:"timestamp"`
+	MethodType string  `json:"method_type"`
 }
 
 var (
@@ -45,6 +45,13 @@ var (
 	userWriter    *kafka.Writer
 	paymentWriter *kafka.Writer
 )
+
+// Генератор уникальных ID на основе атомарного счётчика
+var idCounter int64
+
+func generateID() int64 {
+	return atomic.AddInt64(&idCounter, 1)
+}
 
 func initKafka() {
 	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
@@ -205,10 +212,10 @@ func healthCheck(c *gin.Context) {
 
 func createMovieEvent(c *gin.Context) {
 	var req struct {
-		MovieID uuid.UUID `json:"movie_id" binding:"required"`
-		Title   string    `json:"title" binding:"required"`
-		Action  string    `json:"action" binding:"required"`
-		UserID  uuid.UUID `json:"user_id" binding:"required"`
+		MovieID int64  `json:"movie_id" binding:"required"`
+		Title   string `json:"title" binding:"required"`
+		Action  string `json:"action" binding:"required"`
+		UserID  int64  `json:"user_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -217,7 +224,7 @@ func createMovieEvent(c *gin.Context) {
 	}
 
 	event := MovieEvent{
-		ID:        uuid.New(),
+		ID:        generateID(),
 		MovieID:   req.MovieID,
 		Title:     req.Title,
 		Action:    req.Action,
@@ -231,16 +238,16 @@ func createMovieEvent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"id":     event.ID.String(),
+		"id":     event.ID,
 		"status": "success",
 	})
 }
 
 func createUserEvent(c *gin.Context) {
 	var req struct {
-		UserID   uuid.UUID `json:"user_id" binding:"required"`
-		Username string    `json:"username" binding:"required"`
-		Action   string    `json:"action" binding:"required"`
+		UserID   int64  `json:"user_id" binding:"required"`
+		Username string `json:"username" binding:"required"`
+		Action   string `json:"action" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -249,7 +256,7 @@ func createUserEvent(c *gin.Context) {
 	}
 
 	event := UserEvent{
-		ID:        uuid.New(),
+		ID:        generateID(),
 		UserID:    req.UserID,
 		Username:  req.Username,
 		Action:    req.Action,
@@ -262,18 +269,18 @@ func createUserEvent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"id":     event.ID.String(),
+		"id":     event.ID,
 		"status": "success",
 	})
 }
 
 func createPaymentEvent(c *gin.Context) {
 	var req struct {
-		PaymentID  uuid.UUID `json:"payment_id" binding:"required"`
-		UserID     uuid.UUID `json:"user_id" binding:"required"`
-		Amount     float64   `json:"amount" binding:"required"`
-		Status     string    `json:"status" binding:"required"`
-		MethodType string    `json:"method_type" binding:"required"`
+		PaymentID  int64   `json:"payment_id" binding:"required"`
+		UserID     int64   `json:"user_id" binding:"required"`
+		Amount     float64 `json:"amount" binding:"required"`
+		Status     string  `json:"status" binding:"required"`
+		MethodType string  `json:"method_type" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -282,7 +289,7 @@ func createPaymentEvent(c *gin.Context) {
 	}
 
 	event := PaymentEvent{
-		ID:         uuid.New(),
+		ID:         generateID(),
 		PaymentID:  req.PaymentID,
 		UserID:     req.UserID,
 		Amount:     req.Amount,
@@ -297,7 +304,7 @@ func createPaymentEvent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"id":     event.ID.String(),
+		"id":     event.ID,
 		"status": "success",
 	})
 }
@@ -314,10 +321,10 @@ func main() {
 
 	router := gin.Default()
 
-	router.GET("/health", healthCheck)
-	router.POST("/events/movie", createMovieEvent)
-	router.POST("/events/user", createUserEvent)
-	router.POST("/events/payment", createPaymentEvent)
+	router.GET("/api/events/health", healthCheck)
+	router.POST("/api/events/movie", createMovieEvent)
+	router.POST("/api/events/user", createUserEvent)
+	router.POST("/api/events/payment", createPaymentEvent)
 
 	go func() {
 		<-ctx.Done()

@@ -75,17 +75,19 @@ func (h *ProxyHandler) determineTarget(r *http.Request) string {
 
 func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	targetURL := h.determineTarget(r)
-	proxyReq, err := http.NewRequest(r.Method, targetURL+r.URL.Path, r.Body)
+
+	fullURL := targetURL + r.URL.Path
+	if r.URL.RawQuery != "" {
+		fullURL += "?" + r.URL.RawQuery
+	}
+
+	proxyReq, err := http.NewRequest(r.Method, fullURL, r.Body)
 	if err != nil {
 		http.Error(w, "Failed to create request", http.StatusInternalServerError)
 		return
 	}
 
-	for name, values := range r.Header {
-		for _, value := range values {
-			proxyReq.Header.Add(name, value)
-		}
-	}
+	proxyReq.Header = r.Header.Clone()
 
 	client := &http.Client{}
 	resp, err := client.Do(proxyReq)

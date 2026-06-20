@@ -1,0 +1,47 @@
+@startuml C4-Containers
+!include <C4/C4_Container>
+
+
+title Киноплатформа — Финальная архитектура
+
+
+Person(user, "Конечный пользователь", "Пользователи стриминговой платформы")
+
+
+System(external_streaming, "Внешние стриминговые платформы", "Сторонние сервисы с поддержкой HLS")
+System(payment_gateway, "Внешняя платёжная система", "Банковский процессинг или агрегатор")
+
+
+System_Boundary(cinema_platform, "Киноплатформа") {
+  Container(api_gateway, "API‑шлюз", "Nginx/Traefik", "Единая точка входа")
+  Container(user_service, "Сервис пользователей", "Go", "Регистрация и аутентификация")
+  Container(catalog_service, "Сервис каталога", "Go", "Управление фильмами и жанрами")
+  Container(billing_service, "Платёжный сервис", "Go", "Обработка платежей и подписок")
+  Container(streaming_service, "Стриминг‑сервис", "Go/FFmpeg", "Генерация HLS‑потоков и доставка видео")
+
+
+  ContainerDb(user_db, "БД пользователей", "PostgreSQL", "Данные пользователей")
+  ContainerDb(catalog_db, "БД каталога", "PostgreSQL", "Фильмы и жанры")
+  ContainerDb(billing_db, "БД платежей", "PostgreSQL", "Платежи и подписки")
+}
+
+
+Rel(user, api_gateway, "Отправляет запросы")
+
+Rel(api_gateway, user_service, "Маршрутизирует запросы")
+Rel(api_gateway, catalog_service, "Маршрутизирует запросы")
+Rel(api_gateway, billing_service, "Маршрутизирует запросы")
+Rel(api_gateway, streaming_service, "Маршрутизирует запросы стриминга")
+
+Rel(user_service, user_db, "Читает/записывает данные")
+Rel(catalog_service, catalog_db, "Читает/записывает данные")
+Rel(billing_service, billing_db, "Читает/записывает данные")
+
+Rel(streaming_service, external_streaming, "Запрашивает HLS‑потоки")
+Rel(external_streaming, streaming_service, "Предоставляет видеоконтент")
+
+Rel(billing_service, payment_gateway, "Отправляет запрос на оплату")
+Rel(payment_gateway, billing_service, "Возвращает статус транзакции")
+
+Rel(streaming_service, user, "Передаёт видео напрямую", "HLS поверх HTTP")
+@enduml

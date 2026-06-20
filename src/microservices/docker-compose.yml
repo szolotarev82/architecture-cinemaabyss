@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14
+    container_name: cinemaabyss-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_password
+      - POSTGRES_DB=cinemaabyss
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cinemaabyss-network
+
+  # Monolith Service
+  monolith:
+    build:
+      context: ../monolith
+      dockerfile: Dockerfile
+    container_name: cinemaabyss-monolith
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DB_CONNECTION_STRING=postgres://postgres:postgres_password@postgres:5432/cinemaabyss?sslmode=disable
+    networks:
+      - cinemaabyss-network
+
+  # Movies Microservice
+  movies-service:
+    build:
+      context: ./movies
+      dockerfile: Dockerfile
+    container_name: cinemaabyss-movies-service
+    depends_on:
+      - postgres
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+      - DB_CONNECTION_STRING=postgres://postgres:postgres_password@postgres:5432/cinemaabyss?sslmode=disable
+    networks:
+      - cinemaabyss-network
+
+  # Proxy Service (API Gateway)
+  proxy-service:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    container_name: cinemaabyss-proxy-service
+    depends_on:
+      - monolith
+      - movies-service
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - MONOLITH_URL=http://monolith:8080
+      - MOVIES_SERVICE_URL=http://movies-service:8081
+      - GRADUAL_MIGRATION="true"
+      - MOVIES_MIGRATION_PERCENT="50"
+    networks:
+      - cinemaabyss-network
+
+volumes:
+  postgres-data:
+
+networks:
+  cinemaabyss-network:
+    driver: bridge

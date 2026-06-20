@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"math/rand"
@@ -108,14 +109,27 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Обработчик хелсчека
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	response := map[string]string{"status": "OK"}
+	json.NewEncoder(w).Encode(response)
+}
+
 func main() {
 	cfg := loadConfig()
-	handler := newProxyHandler(cfg)
+	proxyHandler := newProxyHandler(cfg)
+
+	// Создаём мультиплексор для маршрутизации
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/proxy/health", healthHandler)
+	mux.Handle("/", proxyHandler)
+
 	port := ":" + cfg.Port
 	log.Printf("Starting proxy service on port %s", port)
 	log.Printf("Monolith URL: %s", cfg.MonolithURL)
 	log.Printf("Movies Service URL: %s", cfg.MoviesServiceURL)
 	log.Printf("Gradual Migration: %t", cfg.GradualMigration)
 	log.Printf("Movies Migration Percent: %d%%", cfg.MoviesMigrationPercent)
-	log.Fatal(http.ListenAndServe(port, handler))
+	log.Fatal(http.ListenAndServe(port, mux))
 }

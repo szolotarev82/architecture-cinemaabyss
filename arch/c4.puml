@@ -1,4 +1,4 @@
-@startuml C4-Containers-Final-Streaming-RU
+@startuml C4-Containers
 !include <C4/C4_Container>
 
 
@@ -44,6 +44,4 @@ Rel(billing_service, payment_gateway, "Отправляет запрос на о
 Rel(payment_gateway, billing_service, "Возвращает статус транзакции")
 
 Rel(streaming_service, user, "Передаёт видео напрямую", "HLS поверх HTTP")
-
-SHOW_LEGEND()
 @enduml
